@@ -5,8 +5,11 @@ This repository contains a PowerShell profile (`Microsoft.PowerShell_profile.ps1
 ## installation
 
 ```
-irm "https://github.com/melsiir/winpower/raw/main/setup.ps1" | iex
+irm "https://github.com/melsiir/powerwin/raw/main/setup.ps1" | iex
 ```
+
+> [!CAUTION]
+> run as administrator
 
 ## Features
 

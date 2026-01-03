@@ -31,6 +31,10 @@ function Start-WingetInstall {
         Write-Host "Installing Git..." -ForegroundColor Yellow
         winget install --id Git.Git --accept-package-agreements --accept-source-agreements
 
+        # Install gpg
+        Write-Host "Installing Gpg..." -ForegroundColor Yellow
+        winget install -e --accept-package-agreements --accept-source-agreements --id GnuPG.GnuPG
+
         # Install GitHub Desktop
         Write-Host "Installing GitHub Desktop..." -ForegroundColor Yellow
         winget install --id GitHub.GitHubDesktop --accept-package-agreements --accept-source-agreements
@@ -296,15 +300,151 @@ function Start-CompleteSetup {
 
 function iqwen() {
    npm install -g @qwen-code/qwen-code@latest
-  }
+   $qpath = "$env:USERPROFILE/.qwen"
+   if (!(Test-Path -PathType Container $qpath)) {
+          New-Item -ItemType Directory -Path $qpath
+     }
+
+    # Download and decrypt the gpg files from GitHub
+
+    $oauthCredsUrl = "https://github.com/melsiir/powerwin/raw/main/qwen/oauth_creds.json.gpg"
+    $settingsUrl = "https://github.com/melsiir/powerwin/raw/main/qwen/settings.json.gpg"
+    $oauthCredsDest = "$qpath/oauth_creds.json.gpg"
+    $settingsDest = "$qpath/settings.json.gpg"
+
+    # Download the encrypted files from GitHub to the .qwen directory
+    try {
+        Write-Host "Downloading oauth_creds.json.gpg from GitHub..." -ForegroundColor Green
+
+        Invoke-RestMethod $oauthCredsUrl -OutFile $oauthCredsDest
+
+        # Decrypt the file
+        Invoke-Decrypt -FilePath $oauthCredsDest
+    } catch {
+        Write-Host "Warning: Could not download oauth_creds.json.gpg from GitHub. Error: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+
+    try {
+        Write-Host "Downloading settings.json.gpg from GitHub..." -ForegroundColor Green
+        Invoke-WebRequest -Uri $settingsUrl -OutFile $settingsDest
+        # Decrypt the file
+        Invoke-Decrypt -FilePath $settingsDest
+    } catch {
+        Write-Host "Warning: Could not download settings.json.gpg from GitHub. Error: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
+
+# Function to encrypt files with gpg
+function Invoke-Encrypt {
+    param(
+        [Parameter(Mandatory)]
+        [string]$FilePath,
+
+        [SecureString]$Passphrase
+    )
+
+    if (-not (Test-Path $FilePath)) {
+        throw "Input file does not exist"
+    }
+
+    if (-not (Get-Command gpg -ErrorAction SilentlyContinue)) {
+        throw "gpg not found in PATH"
+    }
+
+    if (-not $Passphrase) {
+        $Passphrase = Read-Host -Prompt "Enter passphrase for encryption" -AsSecureString
+    }
+
+    $outputPath = "$FilePath.gpg"
+
+    $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR(
+        [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Passphrase)
+    )
+
+    try {
+        $plain | gpg `
+            --batch `
+            --yes `
+            --pinentry-mode loopback `
+            --passphrase-fd 0 `
+            --output $outputPath `
+            --symmetric `
+            $FilePath
+    }
+    finally {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR(
+            [Runtime.InteropServices.Marshal]::StringToBSTR($plain)
+        )
+    }
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "GPG encryption failed"
+    }
+}
+
+function Invoke-Decrypt {
+    param(
+        [Parameter(Mandatory)]
+        [string]$FilePath,
+
+        [SecureString]$Passphrase
+    )
+
+    if (-not (Test-Path $FilePath)) {
+        throw "Input file does not exist"
+    }
+
+    if ($FilePath -notmatch '\.gpg$') {
+        throw "Input file does not have .gpg extension"
+    }
+
+    if (-not (Get-Command gpg -ErrorAction SilentlyContinue)) {
+        throw "gpg not found in PATH"
+    }
+
+    if (-not $Passphrase) {
+        $Passphrase = Read-Host -Prompt "Enter passphrase for decryption" -AsSecureString
+    }
+
+    $outputPath = $FilePath -replace '\.gpg$', ''
+
+    $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR(
+        [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Passphrase)
+    )
+
+    try {
+        $plain | gpg `
+            --batch `
+            --yes `
+            --pinentry-mode loopback `
+            --passphrase-fd 0 `
+            --output $outputPath `
+            --decrypt `
+            $FilePath
+    }
+    finally {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR(
+            [Runtime.InteropServices.Marshal]::StringToBSTR($plain)
+        )
+    }
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "GPG decryption failed"
+    }
+}
 
 # Aliases for convenience
 Set-Alias winget-install Start-WingetInstall
 Set-Alias sdk-config Set-AndroidSDKConfig
 Set-Alias complete-setup Start-CompleteSetup
 Set-Alias fresh Start-CompleteSetup
+Set-Alias encrypt Invoke-Encrypt
+Set-Alias decrypt Invoke-Decrypt
 
 Write-Host "PowerShell profile loaded successfully!" -ForegroundColor Green
 Write-Host "Available functions:" -ForegroundColor Cyan
 Write-Host "  - Start-CompleteSetup (alias: complete-setup, fresh)" -ForegroundColor White
+Write-Host "  - Invoke-Encrypt (alias: encrypt)" -ForegroundColor White
+Write-Host "  - Invoke-Decrypt (alias: decrypt)" -ForegroundColor White
 Write-Host ""
