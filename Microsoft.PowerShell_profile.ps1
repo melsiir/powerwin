@@ -327,8 +327,10 @@ if ($LASTEXITCODE -ne 0) {
 
     $oauthCredsUrl = "https://github.com/melsiir/powerwin/raw/main/qwen/oauth_creds.json.gpg"
     $settingsUrl = "https://github.com/melsiir/powerwin/raw/main/qwen/settings.json.gpg"
+    $installIdUrl = "https://github.com/melsiir/powerwin/raw/main/qwen/installation_id.gpg"
     $oauthCredsDest = "$qpath/oauth_creds.json.gpg"
     $settingsDest = "$qpath/settings.json.gpg"
+    $installIdDest = "$qpath/installation_id.gpg"
 
     # Download the encrypted files from GitHub to the .qwen directory
     try {
@@ -343,6 +345,17 @@ if ($LASTEXITCODE -ne 0) {
     }
 
     try {
+        Write-Host "Downloading installation_id.gpg from GitHub..." -ForegroundColor Green
+
+        Invoke-RestMethod $installIdUrl -OutFile $installIdDest
+
+        # Decrypt the file
+        Invoke-Decrypt -FilePath $installIdDest
+    } catch {
+        Write-Host "Warning: Could not download installation_id.json.gpg from GitHub. Error: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+
+    try {
         Write-Host "Downloading settings.json.gpg from GitHub..." -ForegroundColor Green
         Invoke-WebRequest -Uri $settingsUrl -OutFile $settingsDest
         # Decrypt the file
@@ -350,6 +363,8 @@ if ($LASTEXITCODE -ne 0) {
     } catch {
         Write-Host "Warning: Could not download settings.json.gpg from GitHub. Error: $($_.Exception.Message)" -ForegroundColor Yellow
     }
+
+    rm $settingsDest $installIdDest $oauthCredsDest
 
 }
 
