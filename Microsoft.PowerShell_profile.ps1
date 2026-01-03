@@ -31,6 +31,10 @@ function Start-WingetInstall {
         Write-Host "Installing Git..." -ForegroundColor Yellow
         winget install --id Git.Git --accept-package-agreements --accept-source-agreements
 
+        # Install gh
+        Write-Host "Installing gh..." -ForegroundColor Yellow
+
+        winget install -e --accept-package-agreements --accept-source-agreements  --id GitHub.cli
         # Install gpg
         Write-Host "Installing Gpg..." -ForegroundColor Yellow
         winget install -e --accept-package-agreements --accept-source-agreements --id GnuPG.GnuPG
@@ -299,7 +303,21 @@ function Start-CompleteSetup {
 }
 
 function iqwen() {
+
+  Write-Host "Checking for qwen-code installation..."
+
+# Use npm list to check for global installation, suppress error output
+npm list -g qwen-code | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "qwen-code not found. Installing now..."
+
    npm install -g @qwen-code/qwen-code@latest
+
+    } else {
+    Write-Host "qwen-code is already installed."
+}
+
+
    $qpath = "$env:USERPROFILE/.qwen"
    if (!(Test-Path -PathType Container $qpath)) {
           New-Item -ItemType Directory -Path $qpath
@@ -332,8 +350,13 @@ function iqwen() {
     } catch {
         Write-Host "Warning: Could not download settings.json.gpg from GitHub. Error: $($_.Exception.Message)" -ForegroundColor Yellow
     }
+
 }
 
+function cloneRepos {
+    cd $HOME\Desktop
+    git clone https://github.com/melsiir/cboard.git
+  }
 
 # Function to encrypt files with gpg
 function Invoke-Encrypt {
@@ -433,6 +456,76 @@ function Invoke-Decrypt {
         throw "GPG decryption failed"
     }
 }
+
+
+# Quick File Creation
+function nf { param($name) New-Item -ItemType "file" -Path . -Name $name }
+
+# Directory Management
+function mkcd { param($dir) mkdir $dir -Force; Set-Location $dir }
+
+
+# Enhanced Listing
+function la { Get-ChildItem | Format-Table -AutoSize }
+function ll { Get-ChildItem -Force | Format-Table -AutoSize }
+
+# Git Shortcuts
+function gs { git status }
+
+function ga { git add . }
+
+function gc { param($m) git commit -m "$m" }
+
+function gpush { git push }
+
+function gpull { git pull }
+
+
+function gcl { git clone "$args" }
+
+function gcom {
+    git add .
+    git commit -m "$args"
+}
+function lazyg {
+    git add .
+    git commit -m "$args"
+    git push
+}
+
+function unzip ($file) {
+    Write-Output("Extracting", $file, "to", $pwd)
+    $fullFile = Get-ChildItem -Path $pwd -Filter $file | ForEach-Object { $_.FullName }
+    Expand-Archive -Path $fullFile -DestinationPath $pwd
+}
+# Navigation Shortcuts
+function docs {
+    $docs = if(([Environment]::GetFolderPath("MyDocuments"))) {([Environment]::GetFolderPath("MyDocuments"))} else {$HOME + "\Documents"}
+    Set-Location -Path $docs
+}
+
+function dtop {
+    $dtop = if ([Environment]::GetFolderPath("Desktop")) {[Environment]::GetFolderPath("Desktop")} else {$HOME + "\Documents"}
+    Set-Location -Path $dtop
+}
+
+function u {
+    explorer.exe $env:USERPROFILE
+  }
+
+if (Get-Command zoxide -ErrorAction SilentlyContinue) {
+    Invoke-Expression (& { (zoxide init --cmd z powershell | Out-String) })
+} else {
+    Write-Host "zoxide command not found. Attempting to install via winget..."
+    try {
+        winget install -e --id ajeetdsouza.zoxide
+        Write-Host "zoxide installed successfully. Initializing..."
+        Invoke-Expression (& { (zoxide init --cmd z powershell | Out-String) })
+    } catch {
+        Write-Error "Failed to install zoxide. Error: $_"
+    }
+}
+
 
 # Aliases for convenience
 Set-Alias winget-install Start-WingetInstall
