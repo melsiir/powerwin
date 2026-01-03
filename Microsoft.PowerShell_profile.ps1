@@ -368,11 +368,16 @@ if ($LASTEXITCODE -ne 0) {
 
 }
 
-function cloneRepos {
+function ccb {
     cd $HOME\Desktop
     git clone https://github.com/melsiir/cboard.git
+     cd $HOME\Desktop\cboard
   }
 
+function cc {
+     cd $HOME\Desktop\cboard
+
+  }
 # Function to encrypt files with gpg
 function Invoke-Encrypt {
     param(
@@ -533,7 +538,7 @@ if (Get-Command zoxide -ErrorAction SilentlyContinue) {
 } else {
     Write-Host "zoxide command not found. Attempting to install via winget..."
     try {
-        winget install -e --id ajeetdsouza.zoxide
+        winget install -e --id ajeetdsouza.zoxide  --accept-package-agreements --accept-source-agreements
         Write-Host "zoxide installed successfully. Initializing..."
         Invoke-Expression (& { (zoxide init --cmd z powershell | Out-String) })
     } catch {
