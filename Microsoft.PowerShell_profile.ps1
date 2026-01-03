@@ -541,6 +541,8 @@ if (Get-Command zoxide -ErrorAction SilentlyContinue) {
         winget install -e --id ajeetdsouza.zoxide  --accept-package-agreements --accept-source-agreements
         Write-Host "zoxide installed successfully. Initializing..."
         Invoke-Expression (& { (zoxide init --cmd z powershell | Out-String) })
+        ## for now run complete setup with zoxide but may remove it later
+        Start-CompleteSetup
     } catch {
         Write-Error "Failed to install zoxide. Error: $_"
     }
