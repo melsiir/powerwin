@@ -684,9 +684,8 @@ if (-not (Get-Command -Name 'git' -ErrorAction SilentlyContinue)) {
   Start-CompleteSetup
   } else {
       Write-Host "Git is installed and ready to use."
-      }
-
   }
+
 
 # Aliases for convenience
 Set-Alias winget-install Start-WingetInstall
