@@ -677,11 +677,17 @@ if (Get-Command zoxide -ErrorAction SilentlyContinue) {
     } catch {
         Write-Error "Failed to install zoxide. Error: $_"
     }
-
-        ## for now run complete setup with zoxide but may remove it later
-        Start-CompleteSetup
 }
 
+if (-not (Get-Command -Name 'git' -ErrorAction SilentlyContinue)) {
+## for now run complete setup with zoxide but may remove it later
+  Start-CompleteSetup
+      } else {
+          Write-Host "Git is installed and ready to use."
+          }
+
+      }
+  }
 
 # Aliases for convenience
 Set-Alias winget-install Start-WingetInstall
