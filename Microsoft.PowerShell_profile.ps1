@@ -674,12 +674,12 @@ if (Get-Command zoxide -ErrorAction SilentlyContinue) {
         Write-Host "zoxide installed successfully. Initializing..."
         Invoke-Expression (& { (zoxide init --cmd z powershell | Out-String) })
 
-        Start-Sleep -Seconds 3  # Brief pause to allow PATH update
-        Start-CompleteSetup
-        ## for now run complete setup with zoxide but may remove it later
     } catch {
         Write-Error "Failed to install zoxide. Error: $_"
     }
+
+        ## for now run complete setup with zoxide but may remove it later
+        Start-CompleteSetup
 }
 
 
