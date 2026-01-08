@@ -57,39 +57,46 @@ function Start-WingetInstall {
         # Write-Host "Installing Brave Browser..." -ForegroundColor Yellow
         # winget install --id Brave.Brave --accept-package-agreements --accept-source-agreements
 
-        # Install Visual Studio Code
-        Write-Host "Installing Visual Studio Code..." -ForegroundColor Yellow
-        winget install --id Microsoft.VisualStudioCode --accept-package-agreements --accept-source-agreements
-
-        Write-Host ""
-        Write-Host "Installation complete!" -ForegroundColor Green
+        # # Install Visual Studio Code
+        # Write-Host "Installing Visual Studio Code..." -ForegroundColor Yellow
+        # winget install --id Microsoft.VisualStudioCode --accept-package-agreements --accept-source-agreements
+        #
+        # Write-Host ""
+        # Write-Host "Installation complete!" -ForegroundColor Green
 
         # Check if npm is available and run basic operations
-        Write-Host "Checking npm availability..." -ForegroundColor Yellow
-        Start-Sleep -Seconds 3  # Brief pause to allow PATH update
-
-        $npmCheck = Get-Command npm -ErrorAction SilentlyContinue
-        if ($npmCheck) {
-            Write-Host "npm is available. Current version:" -ForegroundColor Green
-            npm --version
-
-            Write-Host "Running npm doctor to check npm installation..." -ForegroundColor Yellow
-            npm doctor
-
-            Write-Host "npm is ready to use!" -ForegroundColor Green
-        } else {
-            Write-Warning "npm may not be in PATH yet. You might need to restart your terminal or run 'refreshenv'."
-            Write-Host "To refresh environment variables without restarting, you can run:" -ForegroundColor Yellow
-            Write-Host "  refreshenv" -ForegroundColor White
-            Write-Host "  # (requires administrator privileges or the 'Chocolatey' package)"
-        }
+        # Write-Host "Checking npm availability..." -ForegroundColor Yellow
+        # Start-Sleep -Seconds 3  # Brief pause to allow PATH update
+        #
+        # $npmCheck = Get-Command npm -ErrorAction SilentlyContinue
+        # if ($npmCheck) {
+        #     Write-Host "npm is available. Current version:" -ForegroundColor Green
+        #     npm --version
+        #
+        #     Write-Host "Running npm doctor to check npm installation..." -ForegroundColor Yellow
+        #     npm doctor
+        #
+        #     Write-Host "npm is ready to use!" -ForegroundColor Green
+        # } else {
+        #     Write-Warning "npm may not be in PATH yet. You might need to restart your terminal or run 'refreshenv'."
+        #     Write-Host "To refresh environment variables without restarting, you can run:" -ForegroundColor Yellow
+        #     Write-Host "  refreshenv" -ForegroundColor White
+        #     Write-Host "  # (requires administrator privileges or the 'Chocolatey' package)"
+        # }
     }
     catch {
         Write-Error "An error occurred during installation: $($_.Exception.Message)"
     }
+
+## add android studio to desktop
+    $wsh = New-Object -ComObject WScript.Shell
+$sc = $wsh.CreateShortcut("$env:USERPROFILE\Desktop\Android Studio.lnk")
+$sc.TargetPath = "C:\Program Files\Android\Android Studio\bin\studio64.exe"
+$sc.WorkingDirectory = "C:\Program Files\Android\Android Studio\bin"
+$sc.Save()
 }
 
-# Function to run the SDK configuration
+# Function to run the SDK configuration from android studio
 function Set-AndroidSDKConfig {
     <#
     .SYNOPSIS
@@ -265,6 +272,83 @@ function Set-AndroidSDKConfig {
     }
 }
 
+# without android studio
+function Install-AndroidCli {
+    [CmdletBinding()]
+    param (
+        [string]$AndroidRoot = "C:\Android",
+        [string]$JavaRoot    = "C:\Java",
+        [string]$ApiLevel    = "34",
+        [string]$BuildTools = "34.0.0"
+    )
+
+    $ErrorActionPreference = "Stop"
+
+    $temp = $env:TEMP
+    $jdkZip = "$temp\jdk17.zip"
+    $sdkZip = "$temp\cmdline-tools.zip"
+
+    # ---- DIRECTORIES ----
+    New-Item -ItemType Directory -Force -Path $AndroidRoot | Out-Null
+    New-Item -ItemType Directory -Force -Path $JavaRoot | Out-Null
+
+    # ---- JDK 17 ----
+    Write-Host "Installing JDK 17..."
+    Invoke-WebRequest `
+        -Uri "https://github.com/adoptium/temurin17-binaries/releases/latest/download/OpenJDK17U-jdk_x64_windows_hotspot.zip" `
+        -OutFile $jdkZip
+
+    Expand-Archive $jdkZip -DestinationPath $JavaRoot -Force
+
+    $jdkHome = Get-ChildItem $JavaRoot | Where-Object Name -like "jdk-17*" | Select-Object -First 1
+    if (-not $jdkHome) { throw "JDK install failed" }
+
+    setx JAVA_HOME $jdkHome.FullName /M
+
+    # ---- ANDROID SDK TOOLS ----
+    Write-Host "Installing Android SDK command-line tools..."
+    Invoke-WebRequest `
+        -Uri "https://dl.google.com/android/repository/commandlinetools-win-11076708_latest.zip" `
+        -OutFile $sdkZip
+
+    Expand-Archive $sdkZip -DestinationPath $AndroidRoot -Force
+
+    $latest = "$AndroidRoot\cmdline-tools\latest"
+    New-Item -ItemType Directory -Force -Path $latest | Out-Null
+
+    Move-Item "$AndroidRoot\cmdline-tools\cmdline-tools\*" $latest -Force
+    Remove-Item "$AndroidRoot\cmdline-tools\cmdline-tools" -Recurse -Force
+
+    # ---- ENV VARS ----
+    setx ANDROID_HOME $AndroidRoot /M
+    setx ANDROID_SDK_ROOT $AndroidRoot /M
+
+    $paths = @(
+        "$jdkHome\bin",
+        "$AndroidRoot\cmdline-tools\latest\bin",
+        "$AndroidRoot\platform-tools"
+    )
+
+    $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    foreach ($p in $paths) {
+        if ($machinePath -notlike "*$p*") {
+            $machinePath += ";$p"
+        }
+    }
+    [Environment]::SetEnvironmentVariable("Path", $machinePath, "Machine")
+
+    # ---- SDK PACKAGES ----
+    Write-Host "Installing SDK packages..."
+    & "$latest\bin\sdkmanager.bat" --licenses
+
+    & "$latest\bin\sdkmanager.bat" `
+        "platform-tools" `
+        "platforms;android-$ApiLevel" `
+        "build-tools;$BuildTools"
+
+    Write-Host "Android CLI installation complete. Restart your terminal."
+}
+
 # Function to run both configurations
 function Start-CompleteSetup {
     <#
@@ -307,16 +391,11 @@ function iqwen() {
   Write-Host "Checking for qwen-code installation..."
 
 # Use npm list to check for global installation, suppress error output
-npm list -g qwen-code | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "qwen-code not found. Installing now..."
-
-   npm install -g @qwen-code/qwen-code@latest
-
-    } else {
+    if (Get-Command qwen -ErrorAction SilentlyContinue) {
     Write-Host "qwen-code is already installed."
-}
-
+    } else {
+   npm install -g @qwen-code/qwen-code@latest
+    }
 
    $qpath = "$env:USERPROFILE/.qwen"
    if (!(Test-Path -PathType Container $qpath)) {
@@ -333,38 +412,38 @@ if ($LASTEXITCODE -ne 0) {
     $installIdDest = "$qpath/installation_id.gpg"
 
     # Download the encrypted files from GitHub to the .qwen directory
-    try {
-        Write-Host "Downloading oauth_creds.json.gpg from GitHub..." -ForegroundColor Green
+    # try {
+    #     Write-Host "Downloading oauth_creds.json.gpg from GitHub..." -ForegroundColor Green
+    #
+    #     Invoke-RestMethod $oauthCredsUrl -OutFile $oauthCredsDest
+    #
+    #     # Decrypt the file
+    #     Invoke-Decrypt -FilePath $oauthCredsDest
+    # } catch {
+    #     Write-Host "Warning: Could not download oauth_creds.json.gpg from GitHub. Error: $($_.Exception.Message)" -ForegroundColor Yellow
+    # }
+    #
+    # try {
+    #     Write-Host "Downloading installation_id.gpg from GitHub..." -ForegroundColor Green
+    #
+    #     Invoke-RestMethod $installIdUrl -OutFile $installIdDest
+    #
+    #     # Decrypt the file
+    #     Invoke-Decrypt -FilePath $installIdDest
+    # } catch {
+    #     Write-Host "Warning: Could not download installation_id.json.gpg from GitHub. Error: $($_.Exception.Message)" -ForegroundColor Yellow
+    # }
+    #
+    # try {
+    #     Write-Host "Downloading settings.json.gpg from GitHub..." -ForegroundColor Green
+    #     Invoke-WebRequest -Uri $settingsUrl -OutFile $settingsDest
+    #     # Decrypt the file
+    #     Invoke-Decrypt -FilePath $settingsDest
+    # } catch {
+    #     Write-Host "Warning: Could not download settings.json.gpg from GitHub. Error: $($_.Exception.Message)" -ForegroundColor Yellow
+    # }
 
-        Invoke-RestMethod $oauthCredsUrl -OutFile $oauthCredsDest
-
-        # Decrypt the file
-        Invoke-Decrypt -FilePath $oauthCredsDest
-    } catch {
-        Write-Host "Warning: Could not download oauth_creds.json.gpg from GitHub. Error: $($_.Exception.Message)" -ForegroundColor Yellow
-    }
-
-    try {
-        Write-Host "Downloading installation_id.gpg from GitHub..." -ForegroundColor Green
-
-        Invoke-RestMethod $installIdUrl -OutFile $installIdDest
-
-        # Decrypt the file
-        Invoke-Decrypt -FilePath $installIdDest
-    } catch {
-        Write-Host "Warning: Could not download installation_id.json.gpg from GitHub. Error: $($_.Exception.Message)" -ForegroundColor Yellow
-    }
-
-    try {
-        Write-Host "Downloading settings.json.gpg from GitHub..." -ForegroundColor Green
-        Invoke-WebRequest -Uri $settingsUrl -OutFile $settingsDest
-        # Decrypt the file
-        Invoke-Decrypt -FilePath $settingsDest
-    } catch {
-        Write-Host "Warning: Could not download settings.json.gpg from GitHub. Error: $($_.Exception.Message)" -ForegroundColor Yellow
-    }
-
-    rm $settingsDest $installIdDest $oauthCredsDest
+    # Remove-Item -Path $settingsDest, $installIdDest, $oauthCredsDest
 
 }
 
@@ -478,6 +557,59 @@ function Invoke-Decrypt {
 }
 
 
+function transfer {
+    param(
+        [Parameter(ValueFromPipeline=$true)]
+        [string]$InputObject
+    )
+
+    # Ensure PSQRCode module is available
+    if (-not (Get-Module -ListAvailable -Name PSQRCode)) {
+        Write-Host "Installing PSQRCode module..."
+        Install-Module -Name PSQRCode -Scope CurrentUser -Force -AllowClobber
+    }
+    Import-Module PSQRCode -Force
+
+    process {
+        # Determine file or piped input
+        if ($InputObject -and (Test-Path $InputObject)) {
+            $file = $InputObject
+            $fileName = [System.IO.Path]::GetFileName($file)
+
+            if ((Get-Item $file).PSIsContainer) {
+                $zipName = "$fileName.zip"
+                $tempZip = Join-Path $env:TEMP $zipName
+                if (Test-Path $tempZip) { Remove-Item $tempZip }
+
+                Compress-Archive -Path (Join-Path $file '*') -DestinationPath $tempZip -Force
+                Invoke-RestMethod -Uri "https://transfer.whalebone.io/$zipName" -Method Put -InFile $tempZip -OutFile $null
+                Remove-Item $tempZip
+
+                $url = "https://transfer.whalebone.io/$zipName"
+            } else {
+                Invoke-RestMethod -Uri "https://transfer.whalebone.io/$fileName" -Method Put -InFile $file -OutFile $null
+                $url = "https://transfer.whalebone.io/$fileName"
+            }
+        } else {
+            # Handle piped content
+            $fileName = "stdin_upload"
+            $tempFile = Join-Path $env:TEMP $fileName
+            $InputData = [System.Text.Encoding]::UTF8.GetBytes($InputObject)
+            [System.IO.File]::WriteAllBytes($tempFile, $InputData)
+
+            Invoke-RestMethod -Uri "https://transfer.whalebone.io/$fileName" -Method Put -InFile $tempFile -OutFile $null
+            Remove-Item $tempFile
+
+            $url = "https://transfer.whalebone.io/$fileName"
+        }
+
+        # Output URL and QR code
+        Write-Host "`nUploaded: $url`n"
+        New-QRCode -Content $url -ECCLevel Q
+    }
+}
+
+
 # Quick File Creation
 function nf { param($name) New-Item -ItemType "file" -Path . -Name $name }
 
@@ -538,10 +670,12 @@ if (Get-Command zoxide -ErrorAction SilentlyContinue) {
 } else {
     Write-Host "zoxide command not found. Attempting to install via winget..."
     try {
-        Start-CompleteSetup
         winget install -e --id ajeetdsouza.zoxide  --accept-package-agreements --accept-source-agreements
         Write-Host "zoxide installed successfully. Initializing..."
         Invoke-Expression (& { (zoxide init --cmd z powershell | Out-String) })
+
+        Start-Sleep -Seconds 3  # Brief pause to allow PATH update
+        Start-CompleteSetup
         ## for now run complete setup with zoxide but may remove it later
     } catch {
         Write-Error "Failed to install zoxide. Error: $_"
