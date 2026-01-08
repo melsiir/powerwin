@@ -682,11 +682,10 @@ if (Get-Command zoxide -ErrorAction SilentlyContinue) {
 if (-not (Get-Command -Name 'git' -ErrorAction SilentlyContinue)) {
 ## for now run complete setup with zoxide but may remove it later
   Start-CompleteSetup
-      } else {
-          Write-Host "Git is installed and ready to use."
-          }
-
+  } else {
+      Write-Host "Git is installed and ready to use."
       }
+
   }
 
 # Aliases for convenience
