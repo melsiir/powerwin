@@ -19,6 +19,11 @@ function Start-WingetInstall {
     Write-Host ""
 
     try {
+        # Install gpg
+        Write-Host "Installing Gpg..." -ForegroundColor Yellow
+        winget install -e --accept-package-agreements --accept-source-agreements --id GnuPG.GnuPG
+
+
         # Install Google Chrome
         Write-Host "Installing Google Chrome..." -ForegroundColor Yellow
         winget install --id Google.Chrome --accept-package-agreements --accept-source-agreements
@@ -35,10 +40,6 @@ function Start-WingetInstall {
         Write-Host "Installing gh..." -ForegroundColor Yellow
 
         winget install -e --accept-package-agreements --accept-source-agreements  --id GitHub.cli
-        # Install gpg
-        Write-Host "Installing Gpg..." -ForegroundColor Yellow
-        winget install -e --accept-package-agreements --accept-source-agreements --id GnuPG.GnuPG
-
         # Install GitHub Desktop
         Write-Host "Installing GitHub Desktop..." -ForegroundColor Yellow
         winget install --id GitHub.GitHubDesktop --accept-package-agreements --accept-source-agreements
@@ -679,7 +680,7 @@ if (Get-Command zoxide -ErrorAction SilentlyContinue) {
     }
 }
 
-if (-not (Get-Command -Name 'git' -ErrorAction SilentlyContinue)) {
+if (-not (Get-Command -Name 'gpg' -ErrorAction SilentlyContinue)) {
 ## for now run complete setup with zoxide but may remove it later
   Start-CompleteSetup
   } else {
