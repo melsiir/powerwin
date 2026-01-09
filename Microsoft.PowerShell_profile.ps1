@@ -619,7 +619,7 @@ function trasnfer {
             $Path = $InputObject
 
             if (-not (Test-Path $Path)) {
-                Write-Error "$Path: No such file or directory"
+                Write-Error "{$Path}: No such file or directory"
                 return 1
             }
 
@@ -635,6 +635,7 @@ function trasnfer {
 
                 try {
                     $uploadUrl = "https://transfer.whalebone.io/$zipFileName"
+                    # $uploadUrl = "https://transfer.whalebone.io/$([uri]::EscapeDataString($FileName))"
                     $result = curl.exe --progress-bar --upload-file $tempZipPath $uploadUrl
                     Write-Output $result
                 } finally {
