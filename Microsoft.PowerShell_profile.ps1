@@ -558,58 +558,100 @@ function Invoke-Decrypt {
 }
 
 
-function transfer {
+function trasnfer {
+    [CmdletBinding()]
     param(
-        [Parameter(ValueFromPipeline=$true)]
-        [string]$InputObject
+        [Parameter(ValueFromPipeline=$true, Position=0)]
+        [string]$InputObject,
+
+        [Parameter(Position=1)]
+        [string]$FileName
     )
 
-    # Ensure PSQRCode module is available
-    if (-not (Get-Module -ListAvailable -Name PSQRCode)) {
-        Write-Host "Installing PSQRCode module..."
-        Install-Module -Name PSQRCode -Scope CurrentUser -Force -AllowClobber
+    begin {
+        $pipedList = @()
     }
-    Import-Module PSQRCode -Force
 
     process {
-        # Determine file or piped input
-        if ($InputObject -and (Test-Path $InputObject)) {
-            $file = $InputObject
-            $fileName = [System.IO.Path]::GetFileName($file)
+        if ($null -ne $InputObject) {
+            $pipedList += $InputObject
+        }
+    }
 
-            if ((Get-Item $file).PSIsContainer) {
-                $zipName = "$fileName.zip"
-                $tempZip = Join-Path $env:TEMP $zipName
-                if (Test-Path $tempZip) { Remove-Item $tempZip }
+    end {
 
-                Compress-Archive -Path (Join-Path $file '*') -DestinationPath $tempZip -Force
-                Invoke-RestMethod -Uri "https://transfer.whalebone.io/$zipName" -Method Put -InFile $tempZip -OutFile $null
-                Remove-Item $tempZip
+  if (-not(Get-InstalledModule -Name "QRCodeGenerator" -ErrorAction SilentlyContinue)) {
+    Write-Host "QRCodeGenerator not installed. installing it right now"
+  Install-Module -Name QRCodeGenerator -Scope CurrentUser -Force
+  }
+        # Determine if we have piped input
+        $hasPipedInput = $pipedList.Count -gt 0
 
-                $url = "https://transfer.whalebone.io/$zipName"
-            } else {
-                Invoke-RestMethod -Uri "https://transfer.whalebone.io/$fileName" -Method Put -InFile $file -OutFile $null
-                $url = "https://transfer.whalebone.io/$fileName"
-            }
-        } else {
-            # Handle piped content
-            $fileName = "stdin_upload"
-            $tempFile = Join-Path $env:TEMP $fileName
-            $InputData = [System.Text.Encoding]::UTF8.GetBytes($InputObject)
-            [System.IO.File]::WriteAllBytes($tempFile, $InputData)
-
-            Invoke-RestMethod -Uri "https://transfer.whalebone.io/$fileName" -Method Put -InFile $tempFile -OutFile $null
-            Remove-Item $tempFile
-
-            $url = "https://transfer.whalebone.io/$fileName"
+        # Check if we have neither piped input nor a file/directory to transfer
+        if (-not $hasPipedInput -and -not $FileName -and -not $InputObject) {
+            Write-Error "No arguments specified.`nUsage:`n trasnfer <file|directory>`n ... | trasnfer <file_name>"
+            return 1
         }
 
-        # Output URL and QR code
-        Write-Host "`nUploaded: $url`n"
-        New-QRCode -Content $url -ECCLevel Q
+        if ($hasPipedInput) {
+            # Handle piped input - requires a filename
+            if (-not $FileName) {
+                Write-Error "Filename required when piping data.`nUsage: ... | trasnfer <file_name>"
+                return 1
+            }
+
+            # Join all piped input into a single string
+            $inputData = $pipedList -join "`n"
+
+            # Create a temporary file for the piped content
+            $tempFile = [System.IO.Path]::GetTempFileName()
+            [System.IO.File]::WriteAllText($tempFile, $inputData)
+
+            try {
+                $uploadUrl = "https://transfer.whalebone.io/$FileName"
+                $result = curl.exe --progress-bar --upload-file $tempFile $uploadUrl
+                Write-Output $result
+            } finally {
+                Remove-Item $tempFile -Force
+            }
+        } else {
+            # Handle file or directory input
+            $Path = $InputObject
+
+            if (-not (Test-Path $Path)) {
+                Write-Error "$Path: No such file or directory"
+                return 1
+            }
+
+            $fileName = Split-Path $Path -Leaf
+
+            if (Test-Path $Path -PathType Container) {
+                # Directory - zip it first
+                $zipFileName = "$fileName.zip"
+                $tempZipPath = Join-Path $env:TEMP $zipFileName
+
+                # Use PowerShell's Compress-Archive to create zip
+                Compress-Archive -Path $Path -DestinationPath $tempZipPath -Force
+
+                try {
+                    $uploadUrl = "https://transfer.whalebone.io/$zipFileName"
+                    $result = curl.exe --progress-bar --upload-file $tempZipPath $uploadUrl
+                    Write-Output $result
+                } finally {
+                    Remove-Item $tempZipPath -Force
+                }
+            } else {
+                # Regular file - upload directly
+                $uploadUrl = "https://transfer.whalebone.io/$fileName"
+                $result = curl.exe --progress-bar --upload-file $Path $uploadUrl
+                Write-Output $result
+            }
+        }
+
+        Write-Output ""
+        Write-Output ""
     }
 }
-
 
 # Quick File Creation
 function nf { param($name) New-Item -ItemType "file" -Path . -Name $name }
@@ -684,7 +726,7 @@ if (-not (Get-Command -Name 'gpg' -ErrorAction SilentlyContinue)) {
 ## for now run complete setup with zoxide but may remove it later
   Start-CompleteSetup
   } else {
-      Write-Host "Git is installed and ready to use."
+      Write-Host "gpg is installed and ready to use."
   }
 
 

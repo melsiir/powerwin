@@ -8,6 +8,7 @@ function trasnfer {
         [string]$FileName
     )
 
+    # Process block to handle piped input
     begin {
         $pipedList = @()
     }
@@ -19,22 +20,23 @@ function trasnfer {
     }
 
     end {
-        # Determine if we have piped input
-        $hasPipedInput = $pipedList.Count -gt 0
+        # Check if we have piped input without a filename (meaning we're receiving piped data)
+        $isPipedInput = $pipedList.Count -gt 0 -and -not $FileName
 
-        # Check if we have neither piped input nor a file/directory to transfer
-        if (-not $hasPipedInput -and -not $FileName -and -not $InputObject) {
+        if (-not $InputObject -and -not $FileName) {
             Write-Error "No arguments specified.`nUsage:`n trasnfer <file|directory>`n ... | trasnfer <file_name>"
             return 1
         }
 
-        if ($hasPipedInput) {
-            # Handle piped input - requires a filename
-            if (-not $FileName) {
-                Write-Error "Filename required when piping data.`nUsage: ... | trasnfer <file_name>"
-                return 1
-            }
+        if ($isPipedInput) {
+            # This scenario shouldn't happen based on our parameter setup,
+            # but handling for completeness
+            Write-Error "Filename required when piping data.`nUsage: ... | trasnfer <file_name>"
+            return 1
+        }
 
+        if ($FileName) {
+            # Input from pipeline - upload with specified filename
             # Join all piped input into a single string
             $inputData = $pipedList -join "`n"
 
@@ -50,7 +52,7 @@ function trasnfer {
                 Remove-Item $tempFile -Force
             }
         } else {
-            # Handle file or directory input
+            # Input from terminal - process file or directory
             $Path = $InputObject
 
             if (-not (Test-Path $Path)) {
