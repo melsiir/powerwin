@@ -678,11 +678,11 @@ function gpull { git pull }
 
 function gb {
 
-    gradlew.bat assembledebug
+    .\gradlew.bat assembledebug
   }
 
 function  gbl {
-    gradlew.bat assembledebug > build_log.txt 2>&1
+    .\gradlew.bat assembledebug > build_log.txt 2>&1
     }
 
 
