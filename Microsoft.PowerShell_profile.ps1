@@ -450,12 +450,12 @@ function iqwen() {
 
 function ccb {
     cd $HOME\Desktop
-    git clone https://github.com/melsiir/cboard.git
-     cd $HOME\Desktop\cboard
+    git clone https://github.com/melsiir/goboard.git
+     cd $HOME\Desktop\goboard
   }
 
 function cc {
-     cd $HOME\Desktop\cboard
+     cd $HOME\Desktop\goboard
 
   }
 # Function to encrypt files with gpg
