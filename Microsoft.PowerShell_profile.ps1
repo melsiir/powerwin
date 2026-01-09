@@ -677,9 +677,13 @@ function gpush { git push }
 function gpull { git pull }
 
 function gb {
-    gradlew.bat assembledebug > build_log.txt 2>&1
 
+    gradlew.bat assembledebug
   }
+
+function  gbl {
+    gradlew.bat assembledebug > build_log.txt 2>&1
+    }
 
 
 function gcl { git clone "$args" }
