@@ -558,25 +558,25 @@ function Invoke-Decrypt {
 }
 
 
-function trasnfer {
+function transfer {
     [CmdletBinding()]
     param(
-        [Parameter(ValueFromPipeline=$true, Position=0)]
-        [string]$InputObject,
+    [Parameter(ValueFromPipeline=$true)]
+        [string]$PipelineInput,
 
-        [Parameter(Position=1)]
-        [string]$FileName
-    )
+    [Parameter(Position=0)]
+        [string]$Path
+        )
 
     begin {
         $pipedList = @()
     }
 
-    process {
-        if ($null -ne $InputObject) {
-            $pipedList += $InputObject
-        }
-    }
+process {
+        if ($PSBoundParameters.ContainsKey('PipelineInput')) {
+                    $pipedList += $PipelineInput
+      }
+}
 
     end {
 
