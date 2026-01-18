@@ -454,8 +454,8 @@ function iqwen() {
 function ghAuth {
 
    $githubPath = "$env:USERPROFILE/github"
-   if (!(Test-Path -PathType Container $qpath)) {
-          New-Item -ItemType Directory -Path $qpath
+   if (!(Test-Path -PathType Container $githubPath)) {
+          New-Item -ItemType Directory -Path $githubPath
      }
 
    $ghSecretPath = "$env:USERPROFILE/github/ghs.gpg"
