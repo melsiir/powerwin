@@ -458,18 +458,20 @@ function ghAuth {
           New-Item -ItemType Directory -Path $githubPath
      }
 
-   $ghSecretPath = "$env:USERPROFILE/github/ghs.gpg"
+   $ghSecretPathEnc = "$env:USERPROFILE/github/ghs.gpg"
+   $ghSecretPath = "$env:USERPROFILE/github/ghs"
    $ghSecretUrl = "https://github.com/melsiir/powerwin/raw/main/github/ghs.gpg"
-   Invoke-RestMethod $ghSecretUrl -OutFile $ghSecretPath
-   Invoke-Decrypt -FilePath $ghSecretPath
+   Invoke-RestMethod $ghSecretUrl -OutFile $ghSecretPathEnc
+   Invoke-Decrypt -FilePath $ghSecretPathEnc
    Get-Content $ghSecretPath | gh auth login --with-token
    Remove-Item $ghSecretPath
 
    # username and email
+   $identityPathEnc =  "$env:USERPROFILE/github/identity.gpg"
    $identityPath =  "$env:USERPROFILE/github/identity"
    $identityUrl = "https://github.com/melsiir/powerwin/raw/main/github/identity.gpg"
-   Invoke-RestMethod $identityUrl -OutFile $identityPath
-   Invoke-Decrypt -FilePath $ghSecretPath
+   Invoke-RestMethod $identityUrl -OutFile $identityPathEnc
+   Invoke-Decrypt -FilePath $identityPathEnc
 
    $lines = Get-Content $identityPath
 
@@ -556,6 +558,9 @@ function Invoke-Decrypt {
     if (-not (Get-Command gpg -ErrorAction SilentlyContinue)) {
         throw "gpg not found in PATH"
     }
+
+    Write-Host "decrypting $FilePath"
+    Write-Host ""
 
     if (-not $Passphrase) {
         $Passphrase = Read-Host -Prompt "Enter passphrase for decryption" -AsSecureString
