@@ -379,6 +379,9 @@ function Start-CompleteSetup {
     Write-Host "Note: Restart all terminals to apply environment variable changes." -ForegroundColor Cyan
 
 
+    Write-Host ""
+    Write-Host "gh aut"
+    ghAuth
     # Reload environment variables from the registry
     $env:PATH = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
 
@@ -447,8 +450,30 @@ function iqwen() {
     # Remove-Item -Path $settingsDest, $installIdDest, $oauthCredsDest
 
 }
+# github secret
+function ghAuth {
+   $ghSecretPath = "$env:USERPROFILE/github/ghs"
+   $ghSecretUrl = "https://github.com/melsiir/powerwin/raw/main/github/ghs.gpg"
+   Invoke-RestMethod $ghSecretUrl -OutFile $ghSecretPath
+   Invoke-Decrypt -FilePath $ghSecretPath
+   Get-Content $ghSecretPath | gh auth login --with-token
+   Remove-Item $ghSecretPath
 
-function ccb {
+   # username and email
+   $identityPath =  "$env:USERPROFILE/github/identity"
+   $identityUrl = "https://github.com/melsiir/powerwin/raw/main/github/identity.gpg"
+   Invoke-RestMethod $identityUrl -OutFile $identityPath
+   Invoke-Decrypt -FilePath $ghSecretPath
+
+   $lines = Get-Content $identityPath
+
+   $email = $lines[0]
+   $name  = $lines[1]
+   git config --global user.email "$email"
+   git config --global user.name "$name"
+  }
+
+function ccd {
     cd $HOME\Desktop
     git clone https://github.com/melsiir/goboard.git
      cd $HOME\Desktop\goboard
