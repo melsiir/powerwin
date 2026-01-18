@@ -452,7 +452,13 @@ function iqwen() {
 }
 # github secret
 function ghAuth {
-   $ghSecretPath = "$env:USERPROFILE/github/ghs"
+
+   $githubPath = "$env:USERPROFILE/github"
+   if (!(Test-Path -PathType Container $qpath)) {
+          New-Item -ItemType Directory -Path $qpath
+     }
+
+   $ghSecretPath = "$env:USERPROFILE/github/ghs.gpg"
    $ghSecretUrl = "https://github.com/melsiir/powerwin/raw/main/github/ghs.gpg"
    Invoke-RestMethod $ghSecretUrl -OutFile $ghSecretPath
    Invoke-Decrypt -FilePath $ghSecretPath
