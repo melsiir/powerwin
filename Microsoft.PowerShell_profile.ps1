@@ -458,11 +458,15 @@ function ghAuth {
           New-Item -ItemType Directory -Path $githubPath
      }
 
+    $passphrase = Read-Host `
+        -Prompt "Enter passphrase for all files: " `
+        -AsSecureString
+
    $ghSecretPathEnc = "$env:USERPROFILE/github/ghs.gpg"
    $ghSecretPath = "$env:USERPROFILE/github/ghs"
    $ghSecretUrl = "https://github.com/melsiir/powerwin/raw/main/github/ghs.gpg"
    Invoke-RestMethod $ghSecretUrl -OutFile $ghSecretPathEnc
-   Invoke-Decrypt -FilePath $ghSecretPathEnc
+   Invoke-Decrypt -FilePath $ghSecretPathEnc -Passphrase $passphrase
    Get-Content $ghSecretPath | gh auth login --with-token
    Remove-Item $ghSecretPath
 
@@ -471,7 +475,7 @@ function ghAuth {
    $identityPath =  "$env:USERPROFILE/github/identity"
    $identityUrl = "https://github.com/melsiir/powerwin/raw/main/github/identity.gpg"
    Invoke-RestMethod $identityUrl -OutFile $identityPathEnc
-   Invoke-Decrypt -FilePath $identityPathEnc
+   Invoke-Decrypt -FilePath $identityPathEnc -Passphrase $passphrase
 
    $lines = Get-Content $identityPath
 
@@ -481,7 +485,7 @@ function ghAuth {
    git config --global user.name "$name"
   }
 
-function ccd {
+function ccc {
     cd $HOME\Desktop
     git clone https://github.com/melsiir/goboard.git
      cd $HOME\Desktop\goboard
@@ -539,6 +543,69 @@ function Invoke-Encrypt {
     }
 }
 
+# function Invoke-Decrypt {
+#     param(
+#         [Parameter(Mandatory)]
+#         [string]$FilePath,
+#
+#         [SecureString]$Passphrase
+#     )
+#
+#     if (-not (Test-Path $FilePath)) {
+#         throw "Input file does not exist"
+#     }
+#
+#     if ($FilePath -notmatch '\.gpg$') {
+#         throw "Input file does not have .gpg extension"
+#     }
+#
+#     if (-not (Get-Command gpg -ErrorAction SilentlyContinue)) {
+#         throw "gpg not found in PATH"
+#     }
+#
+#     Write-Host "decrypting $FilePath"
+#     Write-Host ""
+#
+#     if (-not $Passphrase) {
+#         $Passphrase = Read-Host -Prompt "Enter passphrase for decryption" -AsSecureString
+#     $outputPath = $FilePath -replace '\.gpg$', ''
+#
+#         $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR(
+#             [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Passphrase)
+#         )
+#
+#         try {
+#             $plain | gpg `
+#                 --batch `
+#                 --yes `
+#                 --pinentry-mode loopback `
+#                 --passphrase-fd 0 `
+#                 --output $outputPath `
+#                 --decrypt `
+#                 $FilePath
+#         }
+#         finally {
+#             [Runtime.InteropServices.Marshal]::ZeroFreeBSTR(
+#                 [Runtime.InteropServices.Marshal]::StringToBSTR($plain)
+#             )
+#         }
+#
+#     if ($LASTEXITCODE -ne 0) {
+#         throw "GPG decryption failed"
+#     }
+#
+#     } else {
+#       gpg --batch --yes `
+#       --pinentry-mode loopback `
+#       --passphrase "$Passphrase" `
+#       --output $outputPath `
+#       --decrypt $FilePath
+#
+#     }
+#
+#    }
+
+
 function Invoke-Decrypt {
     param(
         [Parameter(Mandatory)]
@@ -559,20 +626,18 @@ function Invoke-Decrypt {
         throw "gpg not found in PATH"
     }
 
-    Write-Host "decrypting $FilePath"
-    Write-Host ""
-
     if (-not $Passphrase) {
         $Passphrase = Read-Host -Prompt "Enter passphrase for decryption" -AsSecureString
     }
 
     $outputPath = $FilePath -replace '\.gpg$', ''
 
-    $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR(
-        [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Passphrase)
-    )
+    Write-Host "Decrypting $FilePath"
 
+    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Passphrase)
     try {
+        $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+
         $plain | gpg `
             --batch `
             --yes `
@@ -583,110 +648,58 @@ function Invoke-Decrypt {
             $FilePath
     }
     finally {
-        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR(
-            [Runtime.InteropServices.Marshal]::StringToBSTR($plain)
-        )
+        if ($bstr -ne [IntPtr]::Zero) {
+            [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+        }
     }
 
     if ($LASTEXITCODE -ne 0) {
         throw "GPG decryption failed"
     }
-}
 
+    Write-Host "Decryption complete: $outputPath"
+}
 
 function transfer {
-    [CmdletBinding()]
     param(
-    [Parameter(ValueFromPipeline=$true)]
-        [string]$PipelineInput,
+        [string]$file
+    )
 
-    [Parameter(Position=0)]
-        [string]$Path
-        )
-
-    begin {
-        $pipedList = @()
+    # Check if file argument is provided
+    if (-not $file) {
+        Write-Error "No arguments specified. Usage: transfer <file|directory>"
+        return
     }
 
-process {
-        if ($PSBoundParameters.ContainsKey('PipelineInput')) {
-                    $pipedList += $PipelineInput
-      }
-}
+    # Check if the file exists
+    $fileName = [System.IO.Path]::GetFileName($file)
+    if (-not (Test-Path $file)) {
+        Write-Error "${file}: No such file or directory"
+        return
+    }
 
-    end {
+    # If it's a directory, zip it first
+    if (Test-Path $file -PathType Container) {
+        $fileName = "$fileName.zip"
+        $tempFile = [System.IO.Path]::Combine($env:TEMP, $fileName)
 
-  if (-not(Get-InstalledModule -Name "QRCodeGenerator" -ErrorAction SilentlyContinue)) {
-    Write-Host "QRCodeGenerator not installed. installing it right now"
-  Install-Module -Name QRCodeGenerator -Scope CurrentUser -Force
-  }
-        # Determine if we have piped input
-        $hasPipedInput = $pipedList.Count -gt 0
-
-        # Check if we have neither piped input nor a file/directory to transfer
-        if (-not $hasPipedInput -and -not $FileName -and -not $InputObject) {
-            Write-Error "No arguments specified.`nUsage:`n trasnfer <file|directory>`n ... | trasnfer <file_name>"
-            return 1
+        # Compress the directory to a temporary zip file
+        try {
+            Compress-Archive -Path $file -DestinationPath $tempFile -Force
+        }
+        catch {
+            Write-Error "Failed to compress the directory."
+            return
         }
 
-        if ($hasPipedInput) {
-            # Handle piped input - requires a filename
-            if (-not $FileName) {
-                Write-Error "Filename required when piping data.`nUsage: ... | trasnfer <file_name>"
-                return 1
-            }
-
-            # Join all piped input into a single string
-            $inputData = $pipedList -join "`n"
-
-            # Create a temporary file for the piped content
-            $tempFile = [System.IO.Path]::GetTempFileName()
-            [System.IO.File]::WriteAllText($tempFile, $inputData)
-
-            try {
-                $uploadUrl = "https://transfer.whalebone.io/$FileName"
-                $result = curl.exe --progress-bar --upload-file $tempFile $uploadUrl
-                Write-Output $result
-            } finally {
-                Remove-Item $tempFile -Force
-            }
-        } else {
-            # Handle file or directory input
-            $Path = $InputObject
-
-            if (-not (Test-Path $Path)) {
-                Write-Error "{$Path}: No such file or directory"
-                return 1
-            }
-
-            $fileName = Split-Path $Path -Leaf
-
-            if (Test-Path $Path -PathType Container) {
-                # Directory - zip it first
-                $zipFileName = "$fileName.zip"
-                $tempZipPath = Join-Path $env:TEMP $zipFileName
-
-                # Use PowerShell's Compress-Archive to create zip
-                Compress-Archive -Path $Path -DestinationPath $tempZipPath -Force
-
-                try {
-                    $uploadUrl = "https://transfer.whalebone.io/$zipFileName"
-                    # $uploadUrl = "https://transfer.whalebone.io/$([uri]::EscapeDataString($FileName))"
-                    $result = curl.exe --progress-bar --upload-file $tempZipPath $uploadUrl
-                    Write-Output $result
-                } finally {
-                    Remove-Item $tempZipPath -Force
-                }
-            } else {
-                # Regular file - upload directly
-                $uploadUrl = "https://transfer.whalebone.io/$fileName"
-                $result = curl.exe --progress-bar --upload-file $Path $uploadUrl
-                Write-Output $result
-            }
-        }
-
-        Write-Output ""
-        Write-Output ""
+        # Upload the compressed file
+        $uploadUrl = "https://transfer.whalebone.io/$fileName"
+        curl.exe --progress-bar --upload-file $tempFile $uploadUrl
+    }
+    else {
+        # If it's a file, upload it directly
+        $uploadUrl = "https://transfer.whalebone.io/$fileName"
+        curl.exe --progress-bar --upload-file $file $uploadUrl
     }
 }
 
