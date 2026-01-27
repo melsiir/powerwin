@@ -17,6 +17,39 @@ function Get-ProfileDir {
         break
     }
 }
+
+# download profiles
+function Install-ProfilesDir {
+    param (
+        [string]$BaseProfileDir
+    )
+
+    $profilesDir = Join-Path $BaseProfileDir "profiles"
+
+    if (!(Test-Path $profilesDir)) {
+        New-Item -Path $profilesDir -ItemType Directory -Force | Out-Null
+    }
+
+    $baseUrl = "https://github.com/melsiir/powerwin/raw/main/profiles"
+
+    $profileFiles = @(
+        # "aliases.ps1"
+        "functions.ps1"
+        # "modules.ps1"
+        # "prompts.ps1"
+    )
+
+    foreach ($file in $profileFiles) {
+        try {
+            Invoke-RestMethod "$baseUrl/$file" `
+                -OutFile (Join-Path $profilesDir $file)
+            Write-Host "📥 Installed $file"
+        }
+        catch {
+            Write-Warning "Failed to download $($file): $($_.Exception.Message)"
+        }
+    }
+}
 # Profile creation or update
 if (!(Test-Path -Path $PROFILE -PathType Leaf)) {
     try {
@@ -25,6 +58,8 @@ if (!(Test-Path -Path $PROFILE -PathType Leaf)) {
             New-Item -Path $profilePath -ItemType "directory" -Force
         }
         Invoke-RestMethod https://github.com/melsiir/powerwin/raw/main/Microsoft.PowerShell_profile.ps1 -OutFile $PROFILE
+        $profileRoot = Get-ProfileDir
+        Install-ProfilesDir -BaseProfileDir $profileRoot
         Write-Host "The profile @ [$PROFILE] has been created."
         Write-Host "If you want to make any personal changes or customizations, please do so at [$profilePath\Profile.ps1] as there is an updater in the installed profile which uses the hash to update the profile and will lead to loss of changes"
     }
@@ -37,6 +72,8 @@ else {
         $backupPath = Join-Path (Split-Path $PROFILE) "oldprofile.ps1"
         Move-Item -Path $PROFILE -Destination $backupPath -Force
         Invoke-RestMethod https://github.com/melsiir/powerwin/raw/main/Microsoft.PowerShell_profile.ps1 -OutFile $PROFILE
+        $profileRoot = Get-ProfileDir
+        Install-ProfilesDir -BaseProfileDir $profileRoot
         Write-Host "✅ PowerShell profile at [$PROFILE] has been updated."
         Write-Host "📦 Your old profile has been backed up to [$backupPath]"
         Write-Host "⚠️ NOTE: Please back up any persistent components of your old profile to [$HOME\Documents\PowerShell\Profile.ps1] as there is an updater in the installed profile which uses the hash to update the profile and will lead to loss of changes"
